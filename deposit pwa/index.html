@@ -1,0 +1,1382 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kas Deposit</title>
+    <!-- PWA: Link ke Manifest Aplikasi --><link rel="manifest" href="/manifest.json">
+    <!-- Tailwind CSS CDN --><script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Inter --><link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+    <!-- html2canvas for screenshot functionality --><script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* Latar belakang lembut */
+        }
+        .app-container {
+            max-width: 480px; /* Ukuran maksimal untuk tampilan HP */
+            min-height: 100vh;
+            margin: 0 auto;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+        .view {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* === Navigasi Bawah Enhancement === */
+        .nav-button {
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            position: relative;
+            overflow: hidden;
+            flex-grow: 1; /* Pastikan tombol mengambil ruang yang sama */
+        }
+        .nav-button:hover {
+            transform: scale(1.05);
+        }
+        .active-nav {
+            transform: scale(1.1) translateY(-2px); /* Efek bubble saat aktif */
+            background-color: #eef2ff; /* indigo-50 */
+            color: #4f46e5; /* indigo-600 */
+            box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3);
+            z-index: 10;
+        }
+        /* Mengatur posisi sticky navigasi agar presisi */
+        .sticky-nav {
+            width: 100%; /* Ambil 100% lebar viewport */
+            max-width: 480px; /* Batasi sesuai lebar aplikasi */
+            left: 50%;
+            transform: translateX(-50%); /* Pusatkan */
+        }
+
+        /* Styling for the report area specifically */
+        .report-card {
+            background: linear-gradient(145deg, #ffffff, #f0f0f0);
+            box-shadow: 5px 5px 15px #e0e0e0, -5px -5px 15px #ffffff;
+        }
+
+        /* Teks animasi untuk saldo */
+        .saldo-text {
+            transition: all 0.5s ease-in-out;
+        }
+        /* Loading spinner */
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #fff;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app" class="app-container bg-white flex flex-col">
+        
+        <!-- Header Aplikasi --><header class="p-4 bg-indigo-600 text-white shadow-lg sticky top-0 z-10">
+            <h1 class="text-2xl font-bold text-center">Kas Deposit</h1>
+        </header>
+
+        <!-- Area Pesan/Notifikasi --><div id="message-area" class="px-4 pt-2 hidden">
+            <div id="message-box" class="p-3 mb-3 text-sm text-center rounded-lg shadow-md transition duration-300 ease-in-out"></div>
+        </div>
+
+        <!-- Konten Utama (Views) --><main id="main-content" class="flex-grow p-4 overflow-y-auto pb-20">
+            
+            <!-- 1. Tampilan Utama (Ringkasan) --><div id="home-view" class="view hidden">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700">Ringkasan Saldo</h2>
+                
+                <div class="bg-gradient-to-r from-blue-500 to-indigo-600 p-6 rounded-xl shadow-lg text-white mb-6 transform hover:scale-[1.02] transition duration-300">
+                    <p class="text-sm opacity-80">Total Saldo Deposit</p>
+                    <div class="flex justify-between items-center mt-1">
+                        <span id="total-saldo" class="text-4xl font-extrabold saldo-text">Rp 0</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 opacity-70" viewBox="0 0 24 24" fill="currentColor"><path d="M21 18V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v13c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM7 10v2h2v-2H7zm4 0v2h2v-2h-2zm4 0v2h2v-2h-2zm-8 4v2h2v-2H7zm4 0v2h2v-2h-2zm4 0v2h2v-2h-2z"/></svg>
+                    </div>
+                    <p id="total-members-summary" class="text-xs mt-4 opacity-70">0 Anggota Terdaftar</p>
+                </div>
+
+                <h3 class="text-lg font-semibold mt-8 mb-3 text-gray-700">Manajemen Data</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <button onclick="exportData()" class="flex flex-col items-center justify-center p-4 bg-purple-500 text-white rounded-xl shadow-md hover:bg-purple-600 transition duration-300 transform hover:shadow-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                        <span class="text-sm font-medium">Backup Data (JSON)</span>
+                    </button>
+                    <button onclick="document.getElementById('file-input').click()" class="flex flex-col items-center justify-center p-4 bg-orange-500 text-white rounded-xl shadow-md hover:bg-orange-600 transition duration-300 transform hover:shadow-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mb-1" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zm-8 2.83V5h2v6.83l1.59-1.59L16 12l-4 4-4-4 1.41-1.41L11 11.83zM5 18v2h14v-2H5z"/></svg>
+                        <span class="text-sm font-medium">Restore Data</span>
+                    </button>
+                    <input type="file" id="file-input" accept=".json" class="hidden" onchange="importData(event)">
+                </div>
+            </div>
+
+            <!-- 2. Tampilan Anggota (CRUD) --><div id="members-view" class="view hidden">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700">Daftar Anggota</h2>
+                
+                <!-- Pencarian Anggota --><div class="mb-4">
+                    <input type="text" id="member-search" onkeyup="filterMembers()" placeholder="Cari anggota berdasarkan nama..." class="w-full p-3 border border-gray-300 rounded-lg focus:ring-yellow-500 focus:border-yellow-500 shadow-sm">
+                </div>
+
+                <!-- Tombol Tambah Anggota --><button id="show-member-form-btn" onclick="showMemberForm()" class="w-full bg-yellow-500 text-white p-3 rounded-lg font-medium mb-4 shadow-md hover:bg-yellow-600 transition duration-200 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="currentColor"><path d="M16 17v-3H8v3H4v-3c0-2.21 3.58-4 8-4s8 1.79 8 4v3h-4zM12 2C9.79 2 8 3.79 8 6s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z"/></svg>
+                    Tambah Anggota Baru
+                </button>
+
+                <!-- Form Tambah/Edit Anggota --><div id="member-form-card" class="bg-gray-100 p-4 rounded-xl shadow-inner mb-4 hidden">
+                    <h3 id="member-form-title" class="text-lg font-semibold mb-3 text-gray-800">Tambah Anggota</h3>
+                    <form id="member-form" onsubmit="handleMemberSubmit(event)" class="space-y-3">
+                        <input type="hidden" id="member-id">
+                        <div>
+                            <label for="member-name" class="block text-sm font-medium text-gray-700">Nama Lengkap</label>
+                            <input type="text" id="member-name" required class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label for="member-phone" class="block text-sm font-medium text-gray-700">Nomor HP (WhatsApp)</label>
+                            <input type="tel" id="member-phone" placeholder="Contoh: 62812xxxx (Opsional)" class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div class="flex space-x-2">
+                            <button type="submit" id="member-submit-btn" class="flex-1 bg-indigo-600 text-white p-2 rounded-md hover:bg-indigo-700 transition duration-200">Simpan</button>
+                            <button type="button" onclick="hideMemberForm()" class="bg-gray-400 text-white p-2 rounded-md hover:bg-gray-500 transition duration-200">Batal</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Daftar Anggota --><div id="members-list-container">
+                    <p id="empty-members" class="text-center text-gray-500 italic p-4 bg-gray-50 rounded-lg">Belum ada anggota terdaftar.</p>
+                    <ul id="members-list" class="space-y-3">
+                        <!-- Anggota akan di-render di sini --></ul>
+                </div>
+            </div>
+
+            <!-- 5. Tampilan Detail Anggota (Laporan Terintegrasi) --><div id="member-detail-view" class="view hidden">
+                <button onclick="switchView('members-view')" class="text-indigo-600 font-medium mb-4 flex items-center hover:text-indigo-800 transition duration-150">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 24 24" fill="currentColor"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6 1.41-1.41z"/></svg>
+                    Kembali ke Daftar Anggota
+                </button>
+                <h2 class="text-2xl font-bold mb-2 text-gray-800" id="detail-member-name"></h2>
+                <p class="text-md text-gray-500 mb-4" id="detail-member-phone"></p>
+                
+                <div class="bg-indigo-500 p-4 rounded-xl shadow-lg text-white mb-6">
+                    <p class="text-sm opacity-80">Saldo Saat Ini (Sisa Saldo)</p>
+                    <span id="detail-member-balance" class="text-3xl font-extrabold">Rp 0</span>
+                </div>
+
+                <!-- Area Laporan yang Akan Di-Screenshot --><div id="member-report-area" class="report-card p-4 rounded-xl shadow-2xl mb-4">
+                     <h3 class="text-xl font-bold text-center text-indigo-700 mb-2">Riwayat Transaksi Anggota</h3>
+                     <p id="detail-report-period" class="text-center text-sm text-gray-600 mb-4">Semua Data</p>
+
+                    <div id="detail-transactions-list" class="space-y-3">
+                        <p id="empty-detail-reports" class="text-center text-gray-500 italic p-4 bg-gray-50 rounded-lg">Anggota ini belum memiliki transaksi dalam periode ini.</p>
+                        <!-- Riwayat transaksi akan di-render di sini -->
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-dashed border-gray-300">
+                        <p class="text-lg font-semibold text-right text-gray-800">Total Deposit: <span id="detail-total-deposit" class="text-green-600">Rp 0</span></p>
+                        <p class="text-lg font-semibold text-right text-gray-800">Total Pakai Saldo: <span id="detail-total-withdraw" class="text-red-600">Rp 0</span></p>
+                        <p class="text-lg font-bold text-right text-indigo-800 mt-2">Saldo Bersih: <span id="detail-net-balance">Rp 0</span></p>
+                    </div>
+                </div>
+
+                <!-- Opsi Ekspor Laporan Anggota --><div class="grid grid-cols-2 gap-4 mt-6">
+                    <button onclick="shareMemberReportWA()" class="flex items-center justify-center p-3 bg-teal-500 text-white rounded-lg font-medium shadow-md hover:bg-teal-600 transition duration-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12c0 3.18 1.44 6.06 3.71 8L3 21l1.37-.89A9.9 9.9 0 0012 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm2.18 13.92c-.22.46-.77.65-1.25.43l-2.27-1.14c-.45-.22-.73-.66-.73-1.14V7.5c0-.55.45-1 1-1s1 .45 1 1v4.73l1.83.92c.48.24.67.79.45 1.27s-.79.67-1.27.45z"/></svg>
+                        Kirim Laporan WA
+                    </button>
+                    <button onclick="saveMemberReportAsPhoto()" id="save-member-report-btn" class="flex items-center justify-center p-3 bg-pink-500 text-white rounded-lg font-medium shadow-md hover:bg-pink-600 transition duration-300">
+                         <div id="member-photo-spinner" class="hidden spinner mr-2"></div>
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="currentColor" id="member-photo-icon"><path d="M19 5h-2V3h-2v2H9V3H7v2H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 14H5V8h14v11zM7 9h10v2H7V9zm0 4h10v2H7v-2z"/></svg>
+                        Simpan Laporan Foto
+                    </button>
+                </div>
+            </div>
+
+
+        </main>
+
+        <!-- Navigasi Bawah --><nav class="bg-white border-t border-gray-200 fixed bottom-0 flex justify-around shadow-2xl p-2 z-20 sticky-nav">
+            <button onclick="switchView('home-view')" class="nav-button flex flex-col items-center p-2 rounded-xl text-gray-500 transition duration-300 active-nav">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5.69l5 4.5V18h-2v-6H9v6H7v-7.81l5-4.5M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z"/></svg>
+                <span class="text-xs mt-1">Beranda</span>
+            </button>
+            <button onclick="switchView('members-view')" class="nav-button flex flex-col items-center p-2 rounded-xl text-gray-500 hover:text-indigo-600 transition duration-300">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="currentColor"><path d="M16 17v-3H8v3H4v-3c0-2.21 3.58-4 8-4s8 1.79 8 4v3h-4zM12 2C9.79 2 8 3.79 8 6s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z"/></svg>
+                <span class="text-xs mt-1">Anggota</span>
+            </button>
+        </nav>
+
+        <!-- Modal Konfirmasi Hapus --><div id="delete-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+            <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full transform transition-all duration-300 scale-95 opacity-0" id="delete-modal-content">
+                <h3 class="text-xl font-bold text-red-600 mb-4">Peringatan!</h3>
+                <p id="delete-modal-text" class="text-gray-700 mb-6">Apakah Anda yakin ingin menghapus anggota ini?</p>
+                <div class="flex justify-end space-x-3">
+                    <button onclick="closeModal('delete-modal')" class="px-4 py-2 bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400 transition duration-150">Batal</button>
+                    <button id="confirm-delete-btn" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-150">Hapus Permanen</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Konfirmasi Transaksi (Pre-save) --><div id="confirm-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+            <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full transform transition-all duration-300 scale-95 opacity-0" id="confirm-modal-content">
+                <h3 class="text-xl font-bold text-indigo-600 mb-4">Konfirmasi Transaksi</h3>
+                <p id="confirm-modal-text" class="text-gray-700 mb-6 font-medium"></p>
+                <div class="flex justify-end space-x-3">
+                    <button onclick="closeModal('confirm-modal')" class="px-4 py-2 bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400 transition duration-150">Batalkan</button>
+                    <button id="confirm-transaction-btn" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-150">Ya, Simpan</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal Input Transaksi --><div id="transaction-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+            <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full transform transition-all duration-300 scale-95 opacity-0" id="transaction-modal-content">
+                <h3 id="transaction-modal-title" class="text-xl font-bold mb-4 text-indigo-600">Input Transaksi</h3>
+                <form id="transaction-form" onsubmit="preConfirmTransaction(event)" class="space-y-4">
+                    <input type="hidden" id="modal-member-id">
+                    <input type="hidden" id="modal-transaction-type">
+                    
+                    <div class="bg-gray-100 p-3 rounded-lg border-l-4 border-yellow-500">
+                        <p class="text-sm text-gray-600">Anggota:</p>
+                        <p id="modal-member-name" class="font-bold text-gray-800"></p>
+                    </div>
+
+                    <div>
+                        <label for="modal-transaction-amount" class="block text-sm font-medium text-gray-700">Jumlah (Rp)</label>
+                        <input type="number" id="modal-transaction-amount" required min="1" placeholder="Masukkan jumlah" class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div>
+                        <label for="modal-transaction-date" class="block text-sm font-medium text-gray-700">Tanggal</label>
+                        <input type="date" id="modal-transaction-date" required class="mt-1 block w-full p-2 border border-gray-300 rounded-md bg-white focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+
+                    <div class="flex justify-end space-x-3">
+                        <button type="button" onclick="closeModal('transaction-modal')" class="px-4 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500 transition duration-150">Batal</button>
+                        <button type="submit" id="modal-submit-btn" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition duration-150">Lanjutkan Konfirmasi</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Modal Bukti Transaksi (Proof) --><div id="proof-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+            <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full transform transition-all duration-300 scale-95 opacity-0" id="proof-modal-content">
+                <h3 class="text-xl font-bold mb-4 text-green-600 text-center">✅ Transaksi Berhasil Dicatat!</h3>
+                
+                <!-- Area Bukti Transaksi (untuk di-screenshot) --><div id="proof-area" class="report-card p-4 rounded-xl shadow-inner mb-4">
+                    <p class="text-sm font-medium text-gray-600 text-center mb-2">BUKTI TRANSAKSI KAS DEPOSIT</p>
+                    <div class="p-3 rounded-lg" id="proof-details-card">
+                        <p class="text-lg font-bold" id="proof-member-name"></p>
+                        <p class="text-md mt-2" id="proof-amount-text"></p>
+                        <p class="text-sm text-gray-600" id="proof-date-text"></p>
+                        <p class="text-lg font-bold mt-3 border-t border-dashed pt-2">Saldo Baru: <span id="proof-new-balance">Rp 0</span></p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 mt-6">
+                    <button onclick="shareProofWA()" class="flex items-center justify-center p-3 bg-teal-500 text-white rounded-lg font-medium shadow-md hover:bg-teal-600 transition duration-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12c0 3.18 1.44 6.06 3.71 8L3 21l1.37-.89A9.9 9.9 0 0012 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm2.18 13.92c-.22.46-.77.65-1.25.43l-2.27-1.14c-.45-.22-.73-.66-.73-1.14V7.5c0-.55.45-1 1-1s1 .45 1 1v4.73l1.83.92c.48.24.67.79.45 1.27s-.79.67-1.27.45z"/></svg>
+                        Share WA
+                    </button>
+                    <button onclick="saveProofAsPhoto()" id="save-proof-btn" class="flex items-center justify-center p-3 bg-pink-500 text-white rounded-lg font-medium shadow-md hover:bg-pink-600 transition duration-300">
+                         <div id="proof-spinner" class="hidden spinner mr-2"></div>
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="currentColor" id="proof-icon"><path d="M19 5h-2V3h-2v2H9V3H7v2H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 14H5V8h14v11zM7 9h10v2H7V9zm0 4h10v2H7v-2z"/></svg>
+                        Simpan Foto
+                    </button>
+                </div>
+                <button onclick="closeModal('proof-modal')" class="w-full mt-4 p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition duration-150">Selesai</button>
+            </div>
+        </div>
+
+
+    </div>
+
+    <script>
+        // ===============================================
+        // VARIABEL KONSTANTA & INITIATION
+        // ===============================================
+
+        const DB_NAME = 'KasKopAppDB';
+        const DB_VERSION = 1;
+        const MEMBER_STORE = 'members';
+        const TRANSACTION_STORE = 'transactions';
+
+        let db;
+        let members = [];
+        let transactions = [];
+        let balances = {}; // Saldo per anggota: {memberId: balance}
+        let pendingTransactionData = null; // Data transaksi yang menunggu konfirmasi
+        let latestTransactionProof = null; // Data transaksi yang baru saja berhasil (untuk bukti)
+        let currentView = 'home-view'; 
+        let currentMemberDetailId = null; // ID anggota yang sedang dilihat di detail view
+
+        // ===============================================
+        // CORE UI & UTILITY FUNCTIONS (Diposisikan di atas untuk hoisting/akses global yang aman)
+        // ===============================================
+
+        /**
+         * Menampilkan pesan notifikasi ke pengguna.
+         * @param {string} message - Pesan yang akan ditampilkan.
+         * @param {string} type - Jenis pesan ('success', 'error', 'info').
+         */
+        function showMessage(message, type) {
+            const area = document.getElementById('message-area');
+            const box = document.getElementById('message-box');
+            
+            if (!box || !area) return; // Pemeriksaan defensif
+
+            box.textContent = message;
+            
+            // Atur warna berdasarkan tipe
+            if (type === 'success') {
+                box.className = 'p-3 mb-3 text-sm text-center rounded-lg shadow-md transition duration-300 ease-in-out bg-green-100 text-green-700 border border-green-300';
+            } else if (type === 'error') {
+                box.className = 'p-3 mb-3 text-sm text-center rounded-lg shadow-md transition duration-300 ease-in-out bg-red-100 text-red-700 border border-red-300';
+            } else { // info
+                box.className = 'p-3 mb-3 text-sm text-center rounded-lg shadow-md transition duration-300 ease-in-out bg-blue-100 text-blue-700 border border-blue-300';
+            }
+
+            area.classList.remove('hidden');
+            // Sembunyikan pesan setelah 4 detik
+            setTimeout(() => {
+                area.classList.add('hidden');
+            }, 4000);
+        }
+
+        /**
+         * Mengubah angka menjadi format Rupiah.
+         * @param {number} number - Angka yang akan diformat.
+         * @returns {string} - String Rupiah.
+         */
+        function formatRupiah(number) {
+            return new Intl.NumberFormat('id-ID', {
+                style: 'currency',
+                currency: 'IDR',
+                minimumFractionDigits: 0,
+            }).format(number);
+        }
+
+        /**
+         * Menampilkan modal dengan animasi.
+         * @param {string} modalId - ID modal.
+         */
+        function openModal(modalId) {
+            const modal = document.getElementById(modalId);
+            const modalContent = document.getElementById(modalId + '-content');
+            
+            if (!modal || !modalContent) return;
+
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modalContent.classList.replace('opacity-0', 'opacity-100');
+                modalContent.classList.replace('scale-95', 'scale-100');
+            }, 10);
+        }
+
+        /**
+         * Menutup modal dengan animasi.
+         * @param {string} modalId - ID modal.
+         */
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            const modalContent = document.getElementById(modalId + '-content');
+            
+            if (!modal || !modalContent) return;
+
+            modalContent.classList.replace('opacity-100', 'opacity-0');
+            modalContent.classList.replace('scale-100', 'scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+        
+        /**
+         * Mengganti tampilan aplikasi.
+         */
+        function switchView(viewId, memberId = null) {
+            document.querySelectorAll('.view').forEach(view => {
+                view.classList.add('hidden');
+            });
+            
+            const targetView = document.getElementById(viewId);
+            if (targetView) {
+                targetView.classList.remove('hidden');
+                currentView = viewId;
+            } else {
+                 console.error(`View dengan ID: ${viewId} tidak ditemukan.`);
+                 return;
+            }
+
+            // Update navigasi
+            document.querySelectorAll('.nav-button').forEach(btn => {
+                btn.classList.remove('active-nav');
+                btn.classList.add('text-gray-500');
+            });
+            
+            // Cari tombol navigasi yang sesuai dengan viewId
+            const navViewId = viewId.includes('detail') ? 'members-view' : viewId;
+            const activeBtn = document.querySelector(`.nav-button[onclick*="${navViewId}"]`);
+            if (activeBtn) {
+                activeBtn.classList.add('active-nav');
+                activeBtn.classList.remove('text-gray-500');
+            }
+
+            // Aksi spesifik saat pindah view
+            if (viewId === 'member-detail-view' && memberId !== null) {
+                currentMemberDetailId = memberId;
+                // Panggil render detail (tanpa filter)
+                renderMemberDetail(memberId);
+            } else {
+                currentMemberDetailId = null;
+            }
+            
+            // Reset search di members view jika pindah ke sana
+            if (viewId === 'members-view') {
+                 document.getElementById('member-search').value = '';
+                 renderMembersList();
+            }
+        }
+        
+        // ===============================================
+        // INDEXEDDB FUNCTIONS
+        // ===============================================
+
+        /**
+         * Membuka dan menginisialisasi koneksi IndexedDB.
+         */
+        function openDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+                request.onupgradeneeded = (event) => {
+                    db = event.target.result;
+                    // Membuat Object Store (tabel)
+                    if (!db.objectStoreNames.contains(MEMBER_STORE)) {
+                        db.createObjectStore(MEMBER_STORE, { keyPath: 'id', autoIncrement: true });
+                    }
+                    if (!db.objectStoreNames.contains(TRANSACTION_STORE)) {
+                        const store = db.createObjectStore(TRANSACTION_STORE, { keyPath: 'id', autoIncrement: true });
+                        store.createIndex('memberId', 'memberId', { unique: false });
+                        store.createIndex('date', 'date', { unique: false });
+                    }
+                };
+
+                request.onsuccess = (event) => {
+                    db = event.target.result;
+                    resolve(db);
+                };
+
+                request.onerror = (event) => {
+                    showMessage('Gagal membuka IndexedDB. ' + event.target.error, 'error');
+                    reject(event.target.error);
+                };
+            });
+        }
+
+        /**
+         * Mendapatkan object store untuk transaksi IndexedDB.
+         */
+        function getStore(storeName, mode) {
+            const transaction = db.transaction(storeName, mode);
+            return transaction.objectStore(storeName);
+        }
+
+        /**
+         * Mendapatkan semua data dari object store.
+         */
+        function getAllData(storeName) {
+            return new Promise((resolve, reject) => {
+                const store = getStore(storeName, 'readonly');
+                const request = store.getAll();
+
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = (event) => {
+                    console.error('Gagal mengambil data:', event.target.error);
+                    reject(event.target.error);
+                };
+            });
+        }
+
+        /**
+         * Menambahkan atau memperbarui data.
+         */
+        function putData(storeName, data) {
+            return new Promise((resolve, reject) => {
+                const store = getStore(storeName, 'readwrite');
+                const request = data.id ? store.put(data) : store.add(data);
+
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = (event) => {
+                    console.error('Gagal menyimpan data:', event.target.error);
+                    reject(event.target.error);
+                };
+            });
+        }
+
+        /**
+         * Menghapus data berdasarkan ID.
+         */
+        function deleteData(storeName, id) {
+            return new Promise((resolve, reject) => {
+                const store = getStore(storeName, 'readwrite');
+                const request = store.delete(id);
+
+                request.onsuccess = () => resolve();
+                request.onerror = (event) => {
+                    console.error('Gagal menghapus data:', event.target.error);
+                    reject(event.target.error);
+                };
+            });
+        }
+
+
+        // ===============================================
+        // LOGIC APLIKASI UTAMA (State Management)
+        // ===============================================
+
+        /**
+         * Memuat semua data dari IndexedDB dan memperbarui UI.
+         */
+        async function loadData() {
+            try {
+                members = await getAllData(MEMBER_STORE);
+                transactions = await getAllData(TRANSACTION_STORE);
+                calculateBalances();
+                renderMembersList();
+                updateHomeView();
+                
+                // Jika sedang di detail view, render ulang
+                if (currentMemberDetailId) {
+                    // Panggil render detail (tanpa filter)
+                    renderMemberDetail(currentMemberDetailId);
+                }
+
+            } catch (error) {
+                showMessage('Terjadi kesalahan saat memuat data.', 'error');
+            }
+        }
+
+        /**
+         * Menghitung saldo total dan saldo per anggota.
+         */
+        function calculateBalances() {
+            balances = {};
+            let totalDeposit = 0;
+
+            // Inisialisasi saldo semua anggota
+            members.forEach(m => balances[m.id] = 0);
+
+            // Hitung transaksi
+            transactions.forEach(t => {
+                const amount = parseFloat(t.amount);
+                if (t.type === 'deposit') {
+                    balances[t.memberId] = (balances[t.memberId] || 0) + amount;
+                    totalDeposit += amount;
+                } else if (t.type === 'withdraw') {
+                    balances[t.memberId] = (balances[t.memberId] || 0) - amount;
+                    totalDeposit -= amount;
+                }
+            });
+
+            // Update Ringkasan
+            const totalSaldoEl = document.getElementById('total-saldo');
+            if (totalSaldoEl) totalSaldoEl.textContent = formatRupiah(totalDeposit);
+
+            const totalMembersEl = document.getElementById('total-members-summary');
+            if (totalMembersEl) totalMembersEl.textContent = `${members.length} Anggota Terdaftar`;
+
+            // Tambahkan animasi singkat saat saldo diperbarui
+            if (totalSaldoEl) {
+                totalSaldoEl.classList.remove('animate-pulse');
+                setTimeout(() => totalSaldoEl.classList.add('animate-pulse'), 10);
+            }
+        }
+
+        /**
+         * Memperbarui tampilan utama (saldo dan ringkasan).
+         */
+        function updateHomeView() {
+            // Saldo sudah dihitung di calculateBalances()
+        }
+        
+        // ===============================================
+        // MANAJEMEN ANGGOTA (CRUD & DETAIL)
+        // ===============================================
+
+        /**
+         * Menampilkan formulir tambah/edit anggota.
+         */
+        function showMemberForm(member = null) {
+            document.getElementById('member-form-card').classList.remove('hidden');
+            document.getElementById('show-member-form-btn').classList.add('hidden');
+            
+            document.getElementById('member-id').value = member ? member.id : '';
+            document.getElementById('member-name').value = member ? member.name : '';
+            document.getElementById('member-phone').value = member ? member.phone : '';
+            
+            const title = document.getElementById('member-form-title');
+            const submitBtn = document.getElementById('member-submit-btn');
+
+            if (member) {
+                title.textContent = 'Edit Anggota: ' + member.name;
+                submitBtn.textContent = 'Perbarui Anggota';
+                submitBtn.classList.replace('bg-indigo-600', 'bg-blue-600');
+            } else {
+                title.textContent = 'Tambah Anggota Baru';
+                submitBtn.textContent = 'Simpan Anggota';
+                submitBtn.classList.replace('bg-blue-600', 'bg-indigo-600');
+            }
+        }
+
+        /**
+         * Menyembunyikan formulir anggota.
+         */
+        function hideMemberForm() {
+            document.getElementById('member-form-card').classList.add('hidden');
+            document.getElementById('show-member-form-btn').classList.remove('hidden');
+            document.getElementById('member-form').reset();
+        }
+
+        /**
+         * Menangani submit formulir anggota (Add/Edit).
+         */
+        async function handleMemberSubmit(event) {
+            event.preventDefault();
+            
+            const id = document.getElementById('member-id').value;
+            const name = document.getElementById('member-name').value.trim();
+            const phone = document.getElementById('member-phone').value.trim();
+
+            if (!name) return showMessage('Nama anggota tidak boleh kosong.', 'error');
+
+            const memberData = { name, phone };
+            if (id) {
+                memberData.id = parseInt(id); // ID harus berupa integer
+            }
+
+            try {
+                await putData(MEMBER_STORE, memberData);
+                await loadData(); // Muat ulang semua data
+                hideMemberForm();
+                showMessage(id ? 'Anggota berhasil diperbarui!' : 'Anggota baru berhasil ditambahkan!', 'success');
+            } catch (error) {
+                showMessage('Gagal menyimpan anggota.', 'error');
+            }
+        }
+
+        /**
+         * Merender daftar anggota di UI (termasuk filter).
+         */
+        function renderMembersList(filteredMembers = members) {
+            const listEl = document.getElementById('members-list');
+            const emptyEl = document.getElementById('empty-members');
+            if (!listEl || !emptyEl) return;
+            
+            listEl.innerHTML = '';
+
+            if (filteredMembers.length === 0) {
+                emptyEl.classList.remove('hidden');
+                return;
+            }
+            emptyEl.classList.add('hidden');
+
+            filteredMembers.forEach(member => {
+                const balance = balances[member.id] || 0;
+                const balanceColor = balance >= 0 ? 'text-green-600' : 'text-red-600';
+                
+                const listItem = document.createElement('li');
+                listItem.className = 'bg-white p-4 rounded-xl shadow-md border-l-4 border-indigo-500 hover:shadow-lg transition duration-200 flex flex-col space-y-3';
+                const memberDataJson = JSON.stringify(member).replace(/"/g, '&quot;');
+                
+                listItem.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-lg font-bold text-gray-800 truncate">${member.name}</p>
+                            <p class="text-sm text-gray-500 truncate">${member.phone || 'Nomor HP tidak ada'}</p>
+                            <p class="text-sm font-semibold mt-1">Saldo: <span class="${balanceColor}">${formatRupiah(balance)}</span></p>
+                        </div>
+                        <div class="flex flex-col space-y-2 ml-4">
+                            <button onclick="showMemberForm(${memberDataJson})" class="text-blue-500 hover:text-blue-700 p-1 rounded-full hover:bg-blue-100 transition duration-150" title="Edit Anggota">
+                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 000-1.41l-2.34-2.34a.996.996 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                            </button>
+                            <button onclick="confirmDeleteMember(${member.id}, '${member.name}')" class="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-100 transition duration-150" title="Hapus Anggota">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Quick Actions --><div class="flex justify-between space-x-2 border-t pt-2 border-gray-100">
+                        <button onclick="openTransactionModal(${member.id}, 'deposit')" class="flex-1 text-xs font-medium text-white bg-green-500 hover:bg-green-600 p-2 rounded-lg transition duration-150">
+                            + Deposit
+                        </button>
+                        <button onclick="openTransactionModal(${member.id}, 'withdraw')" class="flex-1 text-xs font-medium text-white bg-red-500 hover:bg-red-600 p-2 rounded-lg transition duration-150">
+                            - Pakai
+                        </button>
+                        <button onclick="switchView('member-detail-view', ${member.id})" class="flex-1 text-xs font-medium text-indigo-600 bg-indigo-100 hover:bg-indigo-200 p-2 rounded-lg transition duration-150">
+                            Riwayat
+                        </button>
+                    </div>
+                `;
+                listEl.appendChild(listItem);
+            });
+        }
+
+        /**
+         * Logika pencarian/filter anggota berdasarkan nama.
+         */
+        function filterMembers() {
+            const searchTerm = document.getElementById('member-search').value.toLowerCase().trim();
+            const filtered = members.filter(member => 
+                member.name.toLowerCase().includes(searchTerm) || 
+                (member.phone && member.phone.includes(searchTerm))
+            );
+            renderMembersList(filtered);
+        }
+
+        /**
+         * Menampilkan detail riwayat transaksi untuk anggota tertentu.
+         * @param {number} memberId - ID anggota.
+         */
+        function renderMemberDetail(memberId) {
+            const member = members.find(m => m.id === memberId);
+            if (!member) return;
+
+            const nameEl = document.getElementById('detail-member-name');
+            const phoneEl = document.getElementById('detail-member-phone');
+            const balanceEl = document.getElementById('detail-member-balance');
+
+            if (nameEl) nameEl.textContent = member.name;
+            if (phoneEl) phoneEl.textContent = member.phone || 'Nomor HP tidak tercatat';
+            
+            const balance = balances[memberId] || 0;
+            const balanceColor = balance >= 0 ? 'text-white' : 'text-red-300';
+            
+            if (balanceEl) {
+                balanceEl.textContent = formatRupiah(balance);
+                balanceEl.classList.remove('text-white', 'text-red-300');
+                balanceEl.classList.add(balanceColor);
+            }
+            
+            // Filter Transaksi (Seluruh data)
+            let memberTransactions = transactions.filter(t => t.memberId === memberId);
+            
+            // Urutkan terbaru ke terlama
+            memberTransactions.sort((a, b) => b.timestamp - a.timestamp); 
+
+            
+            // Render Daftar Transaksi
+            const listEl = document.getElementById('detail-transactions-list');
+            const emptyEl = document.getElementById('empty-detail-reports');
+            if (!listEl || !emptyEl) return;
+            
+            listEl.innerHTML = '';
+            
+            let totalDeposit = 0;
+            let totalWithdraw = 0; // Tetap pakai 'withdraw' di JS untuk konsistensi data store
+
+            if (memberTransactions.length === 0) {
+                 emptyEl.classList.remove('hidden');
+                 listEl.appendChild(emptyEl);
+            } else {
+                 emptyEl.classList.add('hidden');
+            }
+
+            memberTransactions.forEach(t => {
+                const isDeposit = t.type === 'deposit';
+                const typeText = isDeposit ? 'Deposit' : 'Pakai'; // Ganti Withdraw ke Pakai
+                const typeColor = isDeposit ? 'text-green-600' : 'text-red-600';
+                const sign = isDeposit ? '+' : '-';
+                
+                if (isDeposit) { totalDeposit += t.amount; } else { totalWithdraw += t.amount; }
+
+                // Format Tanggal dan Hari
+                const formattedDate = new Date(t.date).toLocaleDateString('id-ID', {
+                    weekday: 'long',
+                    day: '2-digit', 
+                    month: 'short', 
+                    year: 'numeric'
+                });
+                
+                const listItem = document.createElement('div');
+                listItem.className = 'bg-white p-3 rounded-lg shadow-sm border-l-4 ' + (isDeposit ? 'border-green-400' : 'border-red-400') + ' flex justify-between items-center';
+                listItem.innerHTML = `
+                    <div>
+                        <p class="font-medium ${typeColor}">${typeText}</p>
+                        <p class="text-xs text-gray-500">${formattedDate}</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="font-bold ${typeColor}">${sign} ${formatRupiah(t.amount)}</p>
+                    </div>
+                `;
+                listEl.appendChild(listItem);
+            });
+            
+            // Render Ringkasan
+            const netBalance = totalDeposit - totalWithdraw;
+            
+            document.getElementById('detail-report-period').textContent = `Semua Data`;
+            document.getElementById('detail-total-deposit').textContent = formatRupiah(totalDeposit);
+            document.getElementById('detail-total-withdraw').textContent = formatRupiah(totalWithdraw);
+            document.getElementById('detail-net-balance').textContent = formatRupiah(netBalance);
+            document.getElementById('detail-net-balance').classList.remove('text-green-700', 'text-red-700');
+            document.getElementById('detail-net-balance').classList.add(netBalance >= 0 ? 'text-green-700' : 'text-red-700');
+
+        }
+        
+        /**
+         * Fungsi filterMemberDetailReports dihapus.
+         */
+        
+        /**
+         * Fungsi resetMemberDetailFilter dihapus.
+         */
+
+        /**
+         * Menampilkan modal konfirmasi sebelum menghapus anggota.
+         */
+        function confirmDeleteMember(memberId, memberName) {
+            const confirmBtn = document.getElementById('confirm-delete-btn');
+            const modalText = document.getElementById('delete-modal-text');
+            if (!confirmBtn || !modalText) return;
+
+            modalText.innerHTML = `Apakah Anda yakin ingin menghapus anggota **${memberName}**? Semua riwayat transaksinya akan ikut terhapus!`;
+            
+            confirmBtn.onclick = null; 
+            confirmBtn.onclick = () => deleteMember(memberId);
+
+            openModal('delete-modal');
+        }
+
+        /**
+         * Menghapus anggota dan semua transaksinya.
+         */
+        async function deleteMember(memberId) {
+            closeModal('delete-modal');
+            try {
+                // Hapus Anggota
+                await deleteData(MEMBER_STORE, memberId);
+
+                // Hapus semua transaksi terkait
+                const relatedTransactions = transactions.filter(t => t.memberId === memberId);
+                for (const t of relatedTransactions) {
+                    await deleteData(TRANSACTION_STORE, t.id);
+                }
+
+                await loadData();
+                showMessage('Anggota dan semua transaksinya berhasil dihapus.', 'success');
+            } catch (error) {
+                showMessage('Gagal menghapus anggota.', 'error');
+            }
+        }
+
+
+        // ===============================================
+        // MANAJEMEN TRANSAKSI & BUKTI
+        // ===============================================
+
+        /**
+         * Membuka modal transaksi dengan data anggota yang sudah diisi.
+         * @param {number} memberId - ID anggota.
+         * @param {string} type - 'deposit' atau 'withdraw'.
+         */
+        function openTransactionModal(memberId, type) {
+            const member = members.find(m => m.id === memberId);
+            if (!member) return showMessage('Anggota tidak ditemukan.', 'error');
+
+            const titleEl = document.getElementById('transaction-modal-title');
+            const nameEl = document.getElementById('modal-member-name');
+            const submitBtn = document.getElementById('modal-submit-btn');
+            
+            document.getElementById('modal-member-id').value = memberId;
+            document.getElementById('modal-transaction-type').value = type;
+            document.getElementById('modal-transaction-amount').value = '';
+            document.getElementById('modal-transaction-date').valueAsDate = new Date();
+
+            nameEl.textContent = member.name;
+            // Ganti teks judul modal
+            titleEl.textContent = type === 'deposit' ? 'Input Deposit' : 'Input Pakai Saldo'; 
+            
+            submitBtn.classList.remove('bg-green-600', 'bg-red-600');
+            submitBtn.classList.add(type === 'deposit' ? 'bg-green-600' : 'bg-red-600');
+
+            openModal('transaction-modal');
+        }
+
+        /**
+         * Menampilkan modal konfirmasi sebelum menyimpan transaksi.
+         */
+        function preConfirmTransaction(event) {
+            event.preventDefault();
+            closeModal('transaction-modal'); // Tutup modal input
+
+            const memberId = parseInt(document.getElementById('modal-member-id').value);
+            const type = document.getElementById('modal-transaction-type').value;
+            const amount = parseFloat(document.getElementById('modal-transaction-amount').value);
+            const date = document.getElementById('modal-transaction-date').value;
+            
+            const member = members.find(m => m.id === memberId);
+            if (!member) return showMessage('Anggota tidak ditemukan.', 'error');
+
+            const currentBalance = balances[memberId] || 0;
+            const isDeposit = type === 'deposit';
+
+            // Validasi Saldo
+            if (!isDeposit && amount > currentBalance) {
+                return showMessage(`Saldo tidak mencukupi. Saldo saat ini: ${formatRupiah(currentBalance)}.`, 'error');
+            }
+
+            pendingTransactionData = { memberId, type, amount, date };
+            
+            let message = '';
+            const confirmBtn = document.getElementById('confirm-transaction-btn');
+            
+            if (isDeposit) {
+                const newBalance = currentBalance + amount;
+                message = `Anda akan melakukan *DEPOSIT* sebesar **${formatRupiah(amount)}** untuk **${member.name}**. Saldo baru: ${formatRupiah(newBalance)}.`;
+                confirmBtn.classList.replace('bg-red-600', 'bg-green-600');
+            } else {
+                const newBalance = currentBalance - amount;
+                // Ganti Withdraw ke Pakai
+                message = `Anda akan melakukan *PAKAI SALDO* sebesar **${formatRupiah(amount)}** oleh **${member.name}**. Saldo sisa: ${formatRupiah(newBalance)}.`;
+                confirmBtn.classList.replace('bg-green-600', 'bg-red-600');
+            }
+
+            document.getElementById('confirm-modal-text').innerHTML = message;
+            
+            confirmBtn.onclick = null; 
+            confirmBtn.onclick = () => handleTransactionSubmit(member.name);
+
+            openModal('confirm-modal');
+        }
+        
+        /**
+         * Menyimpan transaksi setelah dikonfirmasi.
+         */
+        async function handleTransactionSubmit(memberName) {
+            closeModal('confirm-modal');
+            
+            if (!pendingTransactionData) return showMessage('Data transaksi hilang.', 'error');
+
+            const { memberId, type, amount, date } = pendingTransactionData;
+
+            const transactionData = {
+                memberId: memberId,
+                type: type,
+                amount: amount,
+                date: date, // Format YYYY-MM-DD
+                timestamp: Date.now()
+            };
+
+            try {
+                const transactionId = await putData(TRANSACTION_STORE, transactionData);
+                await loadData(); // Muat ulang semua data & saldo
+
+                const newBalance = balances[memberId] || 0;
+                
+                // Siapkan data untuk bukti (proof)
+                latestTransactionProof = {
+                    id: transactionId,
+                    memberId: memberId,
+                    memberName: memberName,
+                    type: type,
+                    amount: amount,
+                    date: date,
+                    newBalance: newBalance
+                };
+                
+                // Tampilkan Modal Bukti
+                openProofModal(latestTransactionProof);
+                
+                const message = type === 'deposit' 
+                    ? `Deposit ${formatRupiah(amount)} untuk ${memberName} berhasil dicatat!`
+                    : `Pakai Saldo ${formatRupiah(amount)} oleh ${memberName} berhasil dicatat!`; // Ganti Withdraw ke Pakai
+
+                showMessage(message, 'success');
+            } catch (error) {
+                showMessage('Gagal mencatat transaksi.', 'error');
+            } finally {
+                pendingTransactionData = null;
+            }
+        }
+        
+        /**
+         * Menampilkan modal bukti transaksi.
+         */
+        function openProofModal(proof) {
+            const isDeposit = proof.type === 'deposit';
+            // Ganti Withdraw ke Pakai
+            const typeText = isDeposit ? 'DEPOSIT BERHASIL' : 'PAKAI SALDO BERHASIL'; 
+            const sign = isDeposit ? '+' : '-';
+            const colorClass = isDeposit ? 'bg-green-100 border-green-400' : 'bg-red-100 border-red-400';
+
+            const nameEl = document.getElementById('proof-member-name');
+            const amountEl = document.getElementById('proof-amount-text');
+            const dateEl = document.getElementById('proof-date-text');
+            const newBalanceEl = document.getElementById('proof-new-balance');
+            const detailsCard = document.getElementById('proof-details-card');
+
+            detailsCard.className = `p-3 rounded-lg border-l-4 ${colorClass}`;
+            nameEl.textContent = proof.memberName;
+            amountEl.innerHTML = `<span class="font-bold text-xl">${typeText}</span>: ${sign} <span class="font-extrabold text-2xl ${isDeposit ? 'text-green-700' : 'text-red-700'}">${formatRupiah(proof.amount)}</span>`;
+            dateEl.textContent = `Tanggal: ${new Date(proof.date).toLocaleDateString('id-ID')}`;
+            newBalanceEl.textContent = formatRupiah(proof.newBalance);
+            newBalanceEl.classList.remove('text-green-700', 'text-red-700');
+            newBalanceEl.classList.add(proof.newBalance >= 0 ? 'text-green-700' : 'text-red-700');
+
+            openModal('proof-modal');
+        }
+
+        /**
+         * Mengirim bukti transaksi terakhir via WhatsApp.
+         */
+        function shareProofWA() {
+            if (!latestTransactionProof) return showMessage('Tidak ada bukti transaksi terbaru.', 'error');
+
+            const proof = latestTransactionProof;
+            const isDeposit = proof.type === 'deposit';
+            // Ganti Withdrawal ke Pakai Saldo
+            const typeText = isDeposit ? 'Deposit' : 'Pakai Saldo'; 
+            const sign = isDeposit ? '+' : '-';
+
+            let text = `*✅ Bukti Transaksi Kas Deposit*\n\n`;
+            text += `Anggota: *${proof.memberName}*\n`;
+            text += `Jenis: *${typeText}*\n`;
+            text += `Jumlah: ${sign} *${formatRupiah(proof.amount)}*\n`;
+            text += `Tanggal: ${new Date(proof.date).toLocaleDateString('id-ID')}\n`;
+            text += `Saldo Baru: *${formatRupiah(proof.newBalance)}*\n\n`;
+            text += `Terima kasih.`;
+
+            const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+            window.open(waUrl, '_blank');
+        }
+
+        /**
+         * Menyimpan bukti transaksi terakhir sebagai foto.
+         */
+        function saveProofAsPhoto() {
+            const proofArea = document.getElementById('proof-area');
+            if (!proofArea || !latestTransactionProof) return showMessage('Tidak ada bukti transaksi terbaru untuk difoto.', 'error');
+            
+            showMessage('Membuat foto bukti transaksi...', 'info');
+
+            const photoIcon = document.getElementById('proof-icon');
+            const photoSpinner = document.getElementById('proof-spinner');
+            if (photoIcon) photoIcon.classList.add('hidden');
+            if (photoSpinner) photoSpinner.classList.remove('hidden');
+
+            const originalPadding = proofArea.style.paddingBottom;
+            proofArea.style.paddingBottom = '30px'; 
+            
+            html2canvas(proofArea, {
+                scale: 2, 
+                useCORS: true,
+                backgroundColor: '#f0f4f8'
+            }).then(canvas => {
+                proofArea.style.paddingBottom = originalPadding;
+                
+                canvas.toBlob((blob) => {
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = `Bukti_${latestTransactionProof.type}_${latestTransactionProof.memberName}_${new Date().toISOString().slice(0, 10)}.png`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(link.href);
+                    showMessage('Foto bukti berhasil diunduh!', 'success');
+                }, 'image/png');
+
+            }).catch(error => {
+                proofArea.style.paddingBottom = originalPadding;
+                console.error("Gagal membuat screenshot:", error);
+                showMessage('Gagal membuat foto bukti.', 'error');
+            }).finally(() => {
+                if (photoIcon) photoIcon.classList.remove('hidden');
+                if (photoSpinner) photoSpinner.classList.add('hidden');
+            });
+        }
+
+        // ===============================================
+        // FUNGSI EKSPOR LAPORAN ANGGOTA (Dari Detail View)
+        // ===============================================
+
+        /**
+         * Mendapatkan data laporan anggota (seluruh data) untuk diekspor.
+         */
+        function getCurrentMemberReportDataForExport() {
+            if (!currentMemberDetailId) return null;
+            
+            const member = members.find(m => m.id === currentMemberDetailId);
+            const memberTransactions = transactions.filter(t => t.memberId === currentMemberDetailId);
+            
+            // Karena filter tanggal dihilangkan, selalu gunakan semua data.
+            const period = 'Semua Data';
+            const data = memberTransactions;
+
+            return {
+                member,
+                period,
+                data: data.sort((a, b) => new Date(a.date) - new Date(b.date))
+            };
+        }
+
+        /**
+         * Mengirim laporan anggota via WhatsApp.
+         */
+        function shareMemberReportWA() {
+            const report = getCurrentMemberReportDataForExport();
+            if (!report || report.data.length === 0) {
+                 return showMessage('Tidak ada data transaksi anggota untuk dibagikan.', 'info');
+            }
+
+            let totalDeposit = 0;
+            let totalWithdraw = 0; // Tetap pakai 'withdraw' di JS untuk hitungan
+
+            let text = `*Laporan Riwayat Deposit Anggota*\n`;
+            text += `Anggota: *${report.member.name}*\n`;
+            text += `Periode: ${report.period}\n\n`;
+
+            report.data.forEach(t => {
+                const isDeposit = t.type === 'deposit';
+                const typeText = isDeposit ? 'Deposit' : 'Pakai Saldo'; // Ganti Withdraw ke Pakai Saldo
+                const sign = isDeposit ? '+' : '-';
+                
+                if (isDeposit) { totalDeposit += t.amount; } else { totalWithdraw += t.amount; }
+
+                // LOGIC PERUBAHAN UTAMA: Tambahkan Hari (weekday: 'long')
+                const dateStr = new Date(t.date).toLocaleDateString('id-ID', {
+                    weekday: 'long',
+                    day: '2-digit', 
+                    month: 'short', 
+                    year: 'numeric'
+                });
+                text += `${dateStr} | ${typeText}: ${sign}${formatRupiah(t.amount)}\n`;
+            });
+
+            text += `\n*-- Ringkasan --*\n`;
+            text += `Total Deposit: ${formatRupiah(totalDeposit)}\n`;
+            text += `Total Pakai Saldo: ${formatRupiah(totalWithdraw)}\n`; // Ganti Withdraw ke Pakai Saldo
+            text += `*Saldo Bersih: ${formatRupiah(totalDeposit - totalWithdraw)}*\n`;
+            text += `Saldo Akhir Total: *${formatRupiah(balances[report.member.id] || 0)}*`;
+
+            const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+            window.open(waUrl, '_blank');
+        }
+
+        /**
+         * Menyimpan laporan anggota sebagai foto.
+         */
+        function saveMemberReportAsPhoto() {
+            const reportArea = document.getElementById('member-report-area');
+            const listEl = document.getElementById('detail-transactions-list');
+            
+            if (!reportArea || listEl.children.length === 0 || (document.getElementById('empty-detail-reports') && !document.getElementById('empty-detail-reports').classList.contains('hidden'))) {
+                return showMessage('Tidak ada data untuk dibuat foto.', 'info');
+            }
+
+            showMessage('Membuat foto laporan anggota...', 'info');
+
+            const photoIcon = document.getElementById('member-photo-icon');
+            const photoSpinner = document.getElementById('member-photo-spinner');
+            if (photoIcon) photoIcon.classList.add('hidden');
+            if (photoSpinner) photoSpinner.classList.remove('hidden');
+
+            const originalPadding = reportArea.style.paddingBottom;
+            reportArea.style.paddingBottom = '30px'; 
+            
+            html2canvas(reportArea, {
+                scale: 2, 
+                useCORS: true,
+                backgroundColor: '#f0f4f8'
+            }).then(canvas => {
+                reportArea.style.paddingBottom = originalPadding;
+                
+                canvas.toBlob((blob) => {
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = `Laporan_Anggota_${members.find(m => m.id === currentMemberDetailId)?.name || 'Unknown'}_${new Date().toISOString().slice(0, 10)}.png`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(link.href);
+                    showMessage('Foto laporan berhasil diunduh!', 'success');
+                }, 'image/png');
+
+            }).catch(error => {
+                reportArea.style.paddingBottom = originalPadding;
+                console.error("Gagal membuat screenshot laporan anggota:", error);
+                showMessage('Gagal membuat foto laporan anggota.', 'error');
+            }).finally(() => {
+                if (photoIcon) photoIcon.classList.remove('hidden');
+                if (photoSpinner) photoSpinner.classList.add('hidden');
+            });
+        }
+
+
+        // ===============================================
+        // FUNGSI EKSPOR/IMPOR DATA BACKUP (Dari Home View)
+        // ===============================================
+        
+        /**
+         * Mengekspor semua data (Anggota dan Transaksi) ke file JSON.
+         */
+        function exportData() {
+            Promise.all([
+                getAllData(MEMBER_STORE),
+                getAllData(TRANSACTION_STORE)
+            ]).then(([exportedMembers, exportedTransactions]) => {
+                const data = {
+                    metadata: {
+                        app: DB_NAME,
+                        version: DB_VERSION,
+                        exportDate: new Date().toISOString()
+                    },
+                    members: exportedMembers,
+                    transactions: exportedTransactions
+                };
+                
+                const dataStr = JSON.stringify(data, null, 2);
+                const blob = new Blob([dataStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `backup_kas_deposit_${new Date().toISOString().slice(0, 10)}.json`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                showMessage('Data berhasil diekspor sebagai JSON.', 'success');
+            }).catch(e => {
+                showMessage('Gagal ekspor data. Cek konsol.', 'error');
+                console.error("Export error:", e);
+            });
+        }
+
+        /**
+         * Mengimpor data dari file JSON.
+         */
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    if (!importedData.members || !importedData.transactions) {
+                        throw new Error("File JSON tidak valid atau format tidak sesuai.");
+                    }
+
+                    // window.confirm digunakan karena ini adalah fungsi pemulihan data yang kritis.
+                    const confirmImport = window.confirm("PERINGATAN: Mengimpor data akan menimpa semua data yang ada saat ini. Lanjutkan?");
+                    if (!confirmImport) {
+                        document.getElementById('file-input').value = ''; // Reset input file
+                        return;
+                    }
+
+                    showMessage('Memulai proses impor...', 'info');
+                    
+                    // Clear stores sebelum mengisi
+                    await new Promise((resolve, reject) => {
+                        const memberStore = getStore(MEMBER_STORE, 'readwrite');
+                        memberStore.clear().onsuccess = () => {
+                            const transactionStore = getStore(TRANSACTION_STORE, 'readwrite');
+                            transactionStore.clear().onsuccess = resolve;
+                            transactionStore.onerror = reject;
+                        };
+                        memberStore.onerror = reject;
+                    });
+
+
+                    // Masukkan data anggota
+                    for (const member of importedData.members) {
+                        await putData(MEMBER_STORE, member);
+                    }
+                    // Masukkan data transaksi
+                    for (const transaction of importedData.transactions) {
+                        await putData(TRANSACTION_STORE, transaction);
+                    }
+
+                    await loadData();
+                    showMessage('Data berhasil diimpor dan aplikasi dimuat ulang!', 'success');
+                } catch (error) {
+                    showMessage(`Gagal mengimpor data: ${error.message || 'Format file salah.'}`, 'error');
+                    console.error("Import error:", error);
+                } finally {
+                    const fileInput = document.getElementById('file-input');
+                    if (fileInput) fileInput.value = ''; // Reset input file
+                }
+            };
+            reader.readAsText(file);
+        }
+
+
+        // ===============================================
+        // PWA REGISTRATION
+        // ===============================================
+
+        /**
+         * Mendaftarkan Service Worker agar aplikasi bisa berjalan offline.
+         */
+        function registerServiceWorker() {
+            if ('serviceWorker' in navigator) {
+                // Hapus window.addEventListener('load', ...) karena sudah dipanggil di window.onload utama
+                navigator.serviceWorker.register('/sw.js').then(registration => {
+                    console.log('ServiceWorker registered: ', registration.scope);
+                    // showMessage('Aplikasi siap untuk diinstal dan digunakan secara offline!', 'info'); // Dihapus agar tidak mengganggu inisialisasi awal
+                }).catch(err => {
+                    console.log('ServiceWorker registration failed: ', err);
+                });
+            }
+        }
+
+
+        // ===============================================
+        // INITIATION & EVENT LISTENERS
+        // ===============================================
+
+        window.onload = async () => {
+            try {
+                // 1. Inisialisasi DB
+                await openDB();
+                
+                // 2. Tampilkan Beranda SEGERA (Perbaikan untuk masalah preview/tampilan kosong)
+                switchView('home-view');
+                
+                // 3. Muat Data (dapat berjalan di latar belakang)
+                await loadData();
+                
+                // 4. Daftarkan PWA
+                registerServiceWorker(); 
+
+            } catch (e) {
+                console.error("Inisialisasi aplikasi gagal:", e);
+                showMessage('Aplikasi gagal dimuat. Cek konsol browser untuk detail.', 'error');
+            }
+            
+            // Event listener untuk menutup modal dengan klik di luar
+            document.getElementById('delete-modal').addEventListener('click', (e) => {
+                if (e.target.id === 'delete-modal') {
+                    closeModal('delete-modal');
+                }
+            });
+            document.getElementById('confirm-modal').addEventListener('click', (e) => {
+                if (e.target.id === 'confirm-modal') {
+                    closeModal('confirm-modal');
+                }
+            });
+            document.getElementById('transaction-modal').addEventListener('click', (e) => {
+                if (e.target.id === 'transaction-modal') {
+                    closeModal('transaction-modal');
+                }
+            });
+            document.getElementById('proof-modal').addEventListener('click', (e) => {
+                if (e.target.id === 'proof-modal') {
+                    closeModal('proof-modal');
+                }
+            });
+        };
+    </script>
+</body>
+</html>
